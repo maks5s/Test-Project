@@ -30,6 +30,8 @@ def get_engine() -> AsyncEngine:
         pool_size=settings.db_pool_size,
         max_overflow=settings.db_max_overflow,
         pool_pre_ping=True,
+        pool_timeout=settings.db_pool_timeout_seconds,
+        connect_args={"timeout": settings.db_connect_timeout_seconds},
         echo=settings.db_echo,
     )
 

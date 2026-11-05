@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://app:app@db:5432/app"
     db_pool_size: int = 10
     db_max_overflow: int = 20
+    db_connect_timeout_seconds: float = 2.0
+    db_pool_timeout_seconds: float = 2.0
     db_echo: bool = False
 
     # LLM provider (OpenAI-compatible HTTP API)

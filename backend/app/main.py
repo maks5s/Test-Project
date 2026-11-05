@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health
+from app.api import health, webhooks
 from app.db import get_engine
 
 
@@ -26,6 +26,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     application.include_router(health.router)
+    application.include_router(webhooks.router)
     return application
 
 

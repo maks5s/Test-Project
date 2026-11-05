@@ -24,7 +24,8 @@ services:
       POSTGRES_PASSWORD: app
       POSTGRES_DB: app
     ports:
-      - "5432:5432"
+      # Host port 5433: a developer machine may already run PostgreSQL on 5432.
+      - "5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:

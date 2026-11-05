@@ -59,8 +59,13 @@ def apply_migrations() -> None:
 
 @pytest.fixture(autouse=True)
 async def clean_database(apply_migrations: None) -> AsyncIterator[None]:
-    """Leave a pristine database behind, whatever the test did."""
+    """Give every test a pristine database, before and after it runs."""
+    await _reset_database()
     yield
+    await _reset_database()
+
+
+async def _reset_database() -> None:
     async with get_sessionmaker()() as session:
         await session.execute(text(f"TRUNCATE TABLE {TRUNCATE_TABLES} RESTART IDENTITY CASCADE"))
         await session.execute(

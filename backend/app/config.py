@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     llm_timeout_seconds: float = 10.0
     llm_max_retries: int = 2
+    llm_retry_backoff_seconds: float = 0.5
     llm_temperature: float = 0.2
     llm_max_tokens: int = 500
     llm_simulated_delay_min: float = 5.0
@@ -43,6 +44,8 @@ class Settings(BaseSettings):
     worker_poll_interval_seconds: float = 1.0
     job_lease_seconds: int = 300
     job_max_attempts: int = 5
+    job_retry_base_seconds: float = 2.0
+    job_retry_max_seconds: float = 60.0
     job_reaper_interval_seconds: float = 30.0
 
     # Reply delivery
@@ -63,6 +66,16 @@ class Settings(BaseSettings):
             raise ValueError("LLM_SIMULATED_DELAY_MAX must be >= LLM_SIMULATED_DELAY_MIN")
         if not 0 <= self.llm_temperature <= 2:
             raise ValueError("LLM_TEMPERATURE must be between 0 and 2")
+        if self.llm_max_retries < 0:
+            raise ValueError("LLM_MAX_RETRIES must not be negative")
+        if self.llm_retry_backoff_seconds < 0:
+            raise ValueError("LLM_RETRY_BACKOFF_SECONDS must not be negative")
+        if self.llm_rate_limit_per_minute <= 0:
+            raise ValueError("LLM_RATE_LIMIT_PER_MINUTE must be positive")
+        if self.worker_concurrency <= 0:
+            raise ValueError("WORKER_CONCURRENCY must be positive")
+        if self.job_lease_seconds <= 0:
+            raise ValueError("JOB_LEASE_SECONDS must be positive")
         return self
 
     @property

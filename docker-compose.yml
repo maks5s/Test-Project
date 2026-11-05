@@ -6,11 +6,18 @@ x-backend-environment: &backend-environment
   LLM_API_KEY: ${LLM_API_KEY:-}
   LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
   LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-10}
+  LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
+  LLM_RETRY_BACKOFF_SECONDS: ${LLM_RETRY_BACKOFF_SECONDS:-0.5}
   LLM_SIMULATED_DELAY_MIN: ${LLM_SIMULATED_DELAY_MIN:-5}
   LLM_SIMULATED_DELAY_MAX: ${LLM_SIMULATED_DELAY_MAX:-30}
   LLM_RATE_LIMIT_PER_MINUTE: ${LLM_RATE_LIMIT_PER_MINUTE:-60}
   WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-32}
+  WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-1}
   JOB_LEASE_SECONDS: ${JOB_LEASE_SECONDS:-300}
+  JOB_MAX_ATTEMPTS: ${JOB_MAX_ATTEMPTS:-5}
+  JOB_RETRY_BASE_SECONDS: ${JOB_RETRY_BASE_SECONDS:-2}
+  JOB_RETRY_MAX_SECONDS: ${JOB_RETRY_MAX_SECONDS:-60}
+  JOB_REAPER_INTERVAL_SECONDS: ${JOB_REAPER_INTERVAL_SECONDS:-30}
   HELPDESK_TIMEOUT_SECONDS: ${HELPDESK_TIMEOUT_SECONDS:-10}
   REPLY_URL_ALLOWED_HOSTS: ${REPLY_URL_ALLOWED_HOSTS:-api,localhost,127.0.0.1}
   MOCK_HELPDESK_INTERNAL_URL: ${MOCK_HELPDESK_INTERNAL_URL:-http://api:8000}
@@ -53,6 +60,21 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  worker:
+    build:
+      context: ./backend
+    environment:
+      <<: *backend-environment
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        # Migrations and the knowledge-base seed run in the api container.
+        condition: service_healthy
+    # Let an in-flight LLM call finish before Docker sends SIGKILL.
+    stop_grace_period: 90s
 
   web:
     build:

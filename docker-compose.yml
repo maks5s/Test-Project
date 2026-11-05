@@ -1,0 +1,69 @@
+name: helpdesk-drafts
+
+x-backend-environment: &backend-environment
+  DATABASE_URL: postgresql+asyncpg://app:app@db:5432/app
+  LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+  LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-10}
+  LLM_SIMULATED_DELAY_MIN: ${LLM_SIMULATED_DELAY_MIN:-5}
+  LLM_SIMULATED_DELAY_MAX: ${LLM_SIMULATED_DELAY_MAX:-30}
+  LLM_RATE_LIMIT_PER_MINUTE: ${LLM_RATE_LIMIT_PER_MINUTE:-60}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-32}
+  JOB_LEASE_SECONDS: ${JOB_LEASE_SECONDS:-300}
+  HELPDESK_TIMEOUT_SECONDS: ${HELPDESK_TIMEOUT_SECONDS:-10}
+  REPLY_URL_ALLOWED_HOSTS: ${REPLY_URL_ALLOWED_HOSTS:-api,localhost,127.0.0.1}
+  MOCK_HELPDESK_INTERNAL_URL: ${MOCK_HELPDESK_INTERNAL_URL:-http://api:8000}
+  ENABLE_DEV_ENDPOINTS: ${ENABLE_DEV_ENDPOINTS:-true}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      <<: *backend-environment
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build:
+      context: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db_data:

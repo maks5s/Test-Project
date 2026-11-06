@@ -2,14 +2,25 @@ import { useState } from 'react'
 import { apiRequest } from '../api'
 
 const DEFAULTS = {
-  event_id: '',
-  ticket_id: '',
   customer_email: 'demo.customer@example.com',
   message: 'Hi! How can I export a report to PDF? The export button does nothing.',
 }
 
+function newSuffix() {
+  return Math.random().toString(36).slice(2, 10)
+}
+
+function prefilledForm() {
+  const suffix = newSuffix()
+  return {
+    ...DEFAULTS,
+    event_id: `evt-${suffix}`,
+    ticket_id: `T-${suffix.toUpperCase()}`,
+  }
+}
+
 export default function SimulateTicket({ onCreated }) {
-  const [form, setForm] = useState(DEFAULTS)
+  const [form, setForm] = useState(prefilledForm)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
@@ -34,6 +45,7 @@ export default function SimulateTicket({ onCreated }) {
     try {
       const accepted = await apiRequest('/api/dev/tickets', { method: 'POST', body: payload })
       setResult(accepted)
+      setForm((current) => ({ ...current, ...prefilledForm() }))
       onCreated?.(accepted)
     } catch (err) {
       setError(err.message)
@@ -49,7 +61,8 @@ export default function SimulateTicket({ onCreated }) {
       </summary>
       <form onSubmit={submit} className="space-y-3 border-t border-gray-200 px-4 py-4">
         <p className="text-xs text-gray-500">
-          Sends the same payload a helpdesk webhook would. Leave ids empty to generate them.
+          Sends the same payload a helpdesk webhook would. Identifiers are prefilled and renewed
+          after each submission.
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block text-xs font-medium text-gray-600">

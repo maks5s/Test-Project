@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     helpdesk_timeout_seconds: float = 10.0
     delivery_max_attempts: int = 5
     delivery_backoff_base_seconds: float = 2.0
+    delivery_backoff_max_seconds: float = 60.0
+    delivery_jitter_seconds: float = 1.0
     reply_url_allowed_hosts: str = "api,localhost,127.0.0.1"
 
     # Local integration helpers
@@ -76,6 +78,16 @@ class Settings(BaseSettings):
             raise ValueError("WORKER_CONCURRENCY must be positive")
         if self.job_lease_seconds <= 0:
             raise ValueError("JOB_LEASE_SECONDS must be positive")
+        if self.delivery_max_attempts <= 0:
+            raise ValueError("DELIVERY_MAX_ATTEMPTS must be positive")
+        if self.delivery_backoff_base_seconds < 0:
+            raise ValueError("DELIVERY_BACKOFF_BASE_SECONDS must not be negative")
+        if self.delivery_backoff_max_seconds < self.delivery_backoff_base_seconds:
+            raise ValueError(
+                "DELIVERY_BACKOFF_MAX_SECONDS must be >= DELIVERY_BACKOFF_BASE_SECONDS"
+            )
+        if self.delivery_jitter_seconds < 0:
+            raise ValueError("DELIVERY_JITTER_SECONDS must not be negative")
         return self
 
     @property

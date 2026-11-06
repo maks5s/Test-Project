@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import re
-from typing import Annotated, Literal
+import uuid
+from datetime import datetime
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from app.services.reply_urls import MAX_REPLY_URL_LENGTH, normalize_reply_url
 
@@ -75,3 +77,94 @@ class WebhookAccepted(BaseModel):
 
     status: Literal["accepted"] = "accepted"
     duplicate: bool
+
+
+class DraftRead(BaseModel):
+    """A generated reply draft as exposed to the operator UI."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    version: int
+    content: str
+    citations: list[dict[str, str]]
+    source: str
+    model: str | None = None
+    latency_ms: int | None = None
+    created_at: datetime
+
+
+class OutboundRead(BaseModel):
+    """Delivery state of the single reply owned by a ticket."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: str
+    idempotency_key: str
+    attempts: int
+    last_error: str | None = None
+    sent_at: datetime | None = None
+    created_at: datetime
+
+
+class TicketRead(BaseModel):
+    """Ticket row plus its current draft and delivery state."""
+
+    id: uuid.UUID
+    external_id: str
+    customer_email: str
+    message: str
+    reply_url: str
+    status: str
+    current_draft_id: uuid.UUID | None = None
+    current_draft: DraftRead | None = None
+    approved_at: datetime | None = None
+    rejected_at: datetime | None = None
+    sent_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    outbound: OutboundRead | None = None
+
+
+class TicketDetail(TicketRead):
+    """Ticket with every draft version for the detail panel."""
+
+    drafts: list[DraftRead]
+
+
+class TicketList(BaseModel):
+    items: list[TicketRead]
+    total: int
+
+
+class MockReplyPayload(BaseModel):
+    """Body the service sends to the mock helpdesk's ``reply_url``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ticket_id: str = Field(min_length=1, max_length=MAX_TICKET_ID_LENGTH)
+    message: str = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
+
+    @field_validator("message")
+    @classmethod
+    def _reject_blank_message(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("message must not be blank")
+        return value
+
+
+class MockReplyRead(BaseModel):
+    """One reply accepted by the mock helpdesk."""
+
+    id: uuid.UUID
+    ticket_external_id: str
+    payload: dict[str, Any]
+    idempotency_key: str
+    received_at: datetime
+    duplicate: bool = False
+
+
+class MockReplyList(BaseModel):
+    items: list[MockReplyRead]
+    total: int

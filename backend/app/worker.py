@@ -28,6 +28,7 @@ from app import jobs, status
 from app.config import Settings, get_settings
 from app.db import SessionFactory, get_engine, get_sessionmaker
 from app.models import Job
+from app.services.delivery import process_send_job
 from app.services.generation import process_generation_job
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,8 @@ class Worker:
         self.worker_id = worker_id or _default_worker_id()
         self._owns_http_client = http_client is None
         self.http_client = http_client or httpx.AsyncClient(
-            timeout=self.settings.llm_timeout_seconds
+            timeout=self.settings.llm_timeout_seconds,
+            follow_redirects=False,
         )
         self._stop = asyncio.Event()
         self._active: set[asyncio.Task[None]] = set()
@@ -135,6 +137,14 @@ class Worker:
         try:
             if job.type == status.JOB_GENERATE_DRAFT:
                 await process_generation_job(
+                    job,
+                    session_factory=self.session_factory,
+                    settings=self.settings,
+                    worker_id=self.worker_id,
+                    http_client=self.http_client,
+                )
+            elif job.type == status.JOB_SEND_REPLY:
+                await process_send_job(
                     job,
                     session_factory=self.session_factory,
                     settings=self.settings,

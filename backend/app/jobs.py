@@ -178,6 +178,37 @@ async def fail_job(
     return True
 
 
+async def mark_job_failed(
+    session: AsyncSession,
+    job_id: uuid.UUID,
+    *,
+    worker_id: str,
+    error: str,
+) -> bool:
+    """Move a claimed job straight to the terminal failed state."""
+    statement = (
+        update(Job)
+        .where(
+            Job.id == job_id,
+            Job.status == status.JOB_RUNNING,
+            Job.locked_by == worker_id,
+        )
+        .values(
+            status=status.JOB_FAILED,
+            locked_at=None,
+            locked_by=None,
+            lease_expires_at=None,
+            last_error=error[:2000],
+            updated_at=func.now(),
+        )
+        .returning(Job.id)
+        .execution_options(synchronize_session=False)
+    )
+    async with session.begin():
+        failed = await session.scalar(statement)
+    return failed is not None
+
+
 async def reap_expired_jobs(session: AsyncSession, *, settings: Settings) -> int:
     """Return jobs whose worker died to the queue, or fail them terminally."""
     statement = (

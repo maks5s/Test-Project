@@ -49,3 +49,21 @@ def normalize_reply_url(raw: str) -> str:
     del port
 
     return candidate
+
+
+def validate_delivery_target(raw: str, allowed_hosts: frozenset[str]) -> str:
+    """Validate a stored ``reply_url`` immediately before a delivery POST.
+
+    The allowlist is the SSRF control: when it is non-empty the target host must
+    be listed. Redirects are disabled by the HTTP client, so a permitted host
+    cannot bounce the request to an internal address.
+    """
+    candidate = normalize_reply_url(raw)
+    parts = urlsplit(candidate)
+    hostname = (parts.hostname or "").lower().rstrip(".")
+    if allowed_hosts and hostname not in allowed_hosts:
+        allowed = ", ".join(sorted(allowed_hosts))
+        raise InvalidReplyUrl(
+            f"reply_url host {hostname!r} is not allowed (REPLY_URL_ALLOWED_HOSTS: {allowed})"
+        )
+    return candidate

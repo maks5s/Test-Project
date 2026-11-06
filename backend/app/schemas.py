@@ -168,3 +168,71 @@ class MockReplyRead(BaseModel):
 class MockReplyList(BaseModel):
     items: list[MockReplyRead]
     total: int
+
+
+class ArticleSummary(BaseModel):
+    """Knowledge base article without its body, for the list column."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    slug: str
+    title: str
+    tags: list[str]
+    updated_at: datetime
+
+
+class ArticleRead(ArticleSummary):
+    """Full article, rendered when the operator opens a citation."""
+
+    body: str
+
+
+class ArticleList(BaseModel):
+    items: list[ArticleSummary]
+    total: int
+
+
+class DevTicketCreate(BaseModel):
+    """Optional overrides for ``POST /api/dev/tickets``.
+
+    Every field is filled with a demo-friendly default when omitted, so the UI
+    can submit an empty object.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: EventId | None = None
+    ticket_id: TicketExternalId | None = None
+    customer_email: CustomerEmail | None = None
+    message: CustomerMessage | None = None
+    reply_url: ReplyUrl | None = None
+
+    @field_validator("customer_email")
+    @classmethod
+    def _validate_optional_email_shape(cls, value: str | None) -> str | None:
+        if value is not None and not _EMAIL_PATTERN.match(value):
+            raise ValueError("customer_email must be a single email address")
+        return value
+
+    @field_validator("message")
+    @classmethod
+    def _reject_optional_blank_message(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("message must not be blank")
+        return value
+
+    @field_validator("reply_url")
+    @classmethod
+    def _validate_optional_reply_url(cls, value: str | None) -> str | None:
+        return normalize_reply_url(value) if value is not None else None
+
+
+class DevTicketAccepted(BaseModel):
+    """What the simulator acknowledges; mirrors the webhook response."""
+
+    status: Literal["accepted"] = "accepted"
+    duplicate: bool
+    ticket_id: uuid.UUID
+    external_id: str
+    event_id: str
+    reply_url: str

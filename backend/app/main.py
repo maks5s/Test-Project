@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health, mock, tickets, webhooks
+from app.api import articles, dev, health, mock, tickets, webhooks
 from app.db import get_engine
 
 
@@ -28,7 +28,9 @@ def create_app() -> FastAPI:
     application.include_router(health.router)
     application.include_router(webhooks.router)
     application.include_router(tickets.router)
+    application.include_router(articles.router)
     application.include_router(mock.router)
+    application.include_router(dev.router)
     return application
 
 

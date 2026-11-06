@@ -83,7 +83,17 @@ class Worker:
             capacity = self.settings.worker_concurrency - len(self._active)
             claimed: list[Job] = []
             if capacity > 0:
-                claimed = await self._claim(capacity)
+                try:
+                    claimed = await self._claim(capacity)
+                except Exception:
+                    # A database outage must not kill the worker: the queue is
+                    # durable, so wait and try again instead of exiting.
+                    logger.exception(
+                        "could not claim jobs; retrying in %ss",
+                        self.settings.worker_poll_interval_seconds,
+                    )
+                    await self._wait_for_poll()
+                    continue
 
             for job in claimed:
                 task = asyncio.create_task(self._run_job(job), name=f"job-{job.id}")
@@ -91,18 +101,21 @@ class Worker:
                 task.add_done_callback(self._active.discard)
 
             if not claimed:
-                try:
-                    await asyncio.wait_for(
-                        self._stop.wait(),
-                        timeout=self.settings.worker_poll_interval_seconds,
-                    )
-                except TimeoutError:
-                    pass
+                await self._wait_for_poll()
 
         if self._active:
             logger.info("waiting for %s in-flight job(s)", len(self._active))
             await asyncio.gather(*tuple(self._active), return_exceptions=True)
         logger.info("worker %s stopped", self.worker_id)
+
+    async def _wait_for_poll(self) -> None:
+        try:
+            await asyncio.wait_for(
+                self._stop.wait(),
+                timeout=self.settings.worker_poll_interval_seconds,
+            )
+        except TimeoutError:
+            pass
 
     async def aclose(self) -> None:
         if self._owns_http_client:

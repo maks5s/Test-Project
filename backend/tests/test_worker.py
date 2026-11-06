@@ -89,3 +89,30 @@ async def test_run_once_returns_zero_when_the_queue_is_empty() -> None:
         assert await worker.run_once() == 0
     finally:
         await worker.aclose()
+
+
+async def test_run_survives_a_transient_database_failure(
+    monkeypatch,
+) -> None:
+    """A database outage pauses the loop instead of terminating the process."""
+    worker = Worker(settings=_settings())
+    attempts = {"claims": 0}
+
+    async def no_reap() -> None:
+        return None
+
+    async def flaky_claim(_limit: int) -> list[Job]:
+        attempts["claims"] += 1
+        if attempts["claims"] == 1:
+            raise OSError("database is down")
+        worker.request_stop()
+        return []
+
+    monkeypatch.setattr(worker, "_reap_if_due", no_reap)
+    monkeypatch.setattr(worker, "_claim", flaky_claim)
+    try:
+        await worker.run()
+    finally:
+        await worker.aclose()
+
+    assert attempts["claims"] == 2
